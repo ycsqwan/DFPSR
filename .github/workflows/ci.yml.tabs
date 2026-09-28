@@ -38,3 +38,23 @@ jobs:
 			- name: Run tests on Windows
 				if: matrix.os == 'windows-latest'
 				run: .\Source\test\test_windows.bat
+	loongarchSimdTest:
+		runs-on: ubuntu-latest
+		timeout-minutes: 30
+		steps:
+			- name: Checkout
+				uses: actions/checkout@v4
+			- name: Run SIMD tests on emulated LoongArch64
+				uses: uraimo/run-on-arch-action@v3
+				with:
+					arch: loongarch64
+					distro: alpine_latest
+					githubToken: ${{ github.token }}
+					dockerRunArgs: |
+						--volume "${PWD}:/opt/dfpsr"
+					install: |
+						apk add --no-cache g++ make bash
+						g++ --version
+					run: |
+						cd /opt/dfpsr/Source/test
+						bash run-simd-tests.sh
