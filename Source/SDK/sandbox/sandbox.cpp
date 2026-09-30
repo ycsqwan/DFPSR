@@ -1,4 +1,4 @@
-﻿
+
 /*
 	An application for previewing tiles and sprites together for potential games.
 	If you design game assets separatelly, they will often look much worse when you put them together.
@@ -98,6 +98,15 @@ LATER:
 #include "../SpriteEngine/importer.h"
 #include <cassert>
 #include <limits>
+#include <cstdio>
+#include <cstdlib>
+
+// Benchmark mode: auto-exit after fixed time and print results
+static bool benchMode = false;
+static double benchStartTime = 0.0;
+static double benchDuration = 25.0; // seconds
+static int benchWidth = 1600;
+static int benchHeight = 900;
 
 using namespace dsr;
 
@@ -163,9 +172,23 @@ void sandbox_main() {
 	// Create the world
 	world = spriteWorld_create(OrthoSystem(string_load(file_combinePaths(mediaPath, U"Ortho.ini"))), 256);
 
+	// Check for benchmark mode
+	const char* benchEnv = getenv("DSR_BENCH");
+	if (benchEnv && benchEnv[0] == '1') {
+		benchMode = true;
+		const char* durEnv = getenv("DSR_BENCH_SECONDS");
+		if (durEnv) benchDuration = atof(durEnv);
+		const char* wEnv = getenv("DSR_BENCH_WIDTH");
+		if (wEnv) benchWidth = atoi(wEnv);
+		const char* hEnv = getenv("DSR_BENCH_HEIGHT");
+		if (hEnv) benchHeight = atoi(hEnv);
+		printf("BENCH_MODE duration=%.1f size=%dx%d\n", benchDuration, benchWidth, benchHeight);
+		fflush(stdout);
+	}
+
 	// Create a window
 	String title = U"David Piuva's Software Renderer - Graphics sandbox";
-	window = window_create(title, 1600, 900);
+	window = window_create(title, benchWidth, benchHeight);
 	//window = window_create_fullscreen(title);
 
 	// Load an interface to the window
@@ -358,6 +381,12 @@ void sandbox_main() {
 	double stepRemainder = 0.0;
 
 	// Profiling
+	if (benchMode) {
+		benchStartTime = time_getSeconds();
+		overlayMode = OverlayMode_Profiling; // Force profiling mode for full rendering
+		printf("BENCH_START\n");
+		fflush(stdout);
+	}
 	double profileStartTime = time_getSeconds();
 	int64_t profileFrameCount = 0; // Frames per second
 	float profileFrameRate = 0.0f;
@@ -498,6 +527,18 @@ void sandbox_main() {
 		double newTime = time_getSeconds();
 		secondsPerFrame = newTime - frameStartTime;
 		frameStartTime = newTime;
+
+		// Benchmark auto-exit
+		if (benchMode) {
+			double elapsed = newTime - benchStartTime;
+			if (elapsed >= benchDuration) {
+				printf("BENCH_RESULT fps=%.2f avg_ms=%.3f max_ms=%.3f frames=%d duration=%.2f\n",
+					profileFrameRate, 1000.0f / profileFrameRate, 1000.0f * lastMaxFrameTime,
+					(int)profileFrameCount, elapsed);
+				fflush(stdout);
+				running = false;
+			}
+		}
 
 		// Profiling
 		if (secondsPerFrame > maxFrameTime) { maxFrameTime = secondsPerFrame; }
